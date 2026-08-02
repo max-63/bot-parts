@@ -34,7 +34,7 @@ class TransferContract(discord.ui.View):
         self.approvals = {m_id: False for m_id in board}
         self.contract_id = str(uuid.uuid4())[:8].upper()
 
-    async def update_message(self, interaction: discord.Interaction, pdf_file=None):
+    async def update_message(self, interaction: discord.Interaction, pdf_file=None, file_hash=None):
         if not interaction.message or not interaction.message.embeds:
             return
             
@@ -52,10 +52,14 @@ class TransferContract(discord.ui.View):
             await interaction.response.edit_message(embed=embed, view=self)
             
             if hasattr(interaction.channel, 'send') and interaction.channel:
+                msg_content = f"🎉 **Transaction scellée.** (Consensus Global Atteint) `{self.source_name}` a transféré **{self.amount:.2f}%** à `{self.target_name}`."
+                if file_hash:
+                    msg_content += f"\n🔒 **Empreinte SHA-256 du fichier :** `{file_hash}`"
+                    
                 if pdf_file:
-                    await getattr(interaction.channel, 'send')(f"🎉 **Transaction scellée.** (Consensus Global Atteint) `{self.source_name}` a transféré **{self.amount:.2f}%** à `{self.target_name}`.", file=pdf_file)
+                    await getattr(interaction.channel, 'send')(msg_content, file=pdf_file)
                 else:
-                    await getattr(interaction.channel, 'send')(f"🎉 **Transaction scellée.** (Consensus Global Atteint) `{self.source_name}` a transféré **{self.amount:.2f}%** à `{self.target_name}`.")
+                    await getattr(interaction.channel, 'send')(msg_content)
         else:
             status_lines = []
             for member_id, approved in self.approvals.items():
@@ -100,8 +104,8 @@ class TransferContract(discord.ui.View):
                 resolved_shares = await get_resolved_shares(interaction.client, manager.get_shares())
                 title = f"Transfert de parts ({self.amount:.2f}%)"
                 details = f"L'actionnaire {self.source_name} a transféré {self.amount:.2f}% de ses parts à {self.target_name} avec l'approbation unanime du Board."
-                pdf_file = generate_certificate(self.contract_id, title, details, resolved_shares)
-                await self.update_message(interaction, pdf_file=pdf_file)
+                pdf_file, file_hash = generate_certificate(self.contract_id, title, details, resolved_shares)
+                await self.update_message(interaction, pdf_file=pdf_file, file_hash=file_hash)
                 return
             except ValueError as e:
                 embed = interaction.message.embeds[0] if interaction.message and interaction.message.embeds else discord.Embed()
@@ -144,7 +148,7 @@ class DilutionContract(discord.ui.View):
         self.approvals = {m_id: False for m_id in board}
         self.contract_id = str(uuid.uuid4())[:8].upper()
 
-    async def update_message(self, interaction: discord.Interaction, pdf_file=None):
+    async def update_message(self, interaction: discord.Interaction, pdf_file=None, file_hash=None):
         if not interaction.message or not interaction.message.embeds:
             return
             
@@ -162,10 +166,14 @@ class DilutionContract(discord.ui.View):
             await interaction.response.edit_message(embed=embed, view=self)
             
             if hasattr(interaction.channel, 'send') and interaction.channel:
+                msg_content = f"📉 **Cap Table mise à jour.** (Consensus Global Atteint) Les parts ont été diluées pour l'entrée de `{self.new_member_name}`."
+                if file_hash:
+                    msg_content += f"\n🔒 **Empreinte SHA-256 du fichier :** `{file_hash}`"
+                    
                 if pdf_file:
-                    await getattr(interaction.channel, 'send')(f"📉 **Cap Table mise à jour.** (Consensus Global Atteint) Les parts ont été diluées pour l'entrée de `{self.new_member_name}`.", file=pdf_file)
+                    await getattr(interaction.channel, 'send')(msg_content, file=pdf_file)
                 else:
-                    await getattr(interaction.channel, 'send')(f"📉 **Cap Table mise à jour.** (Consensus Global Atteint) Les parts ont été diluées pour l'entrée de `{self.new_member_name}`.")
+                    await getattr(interaction.channel, 'send')(msg_content)
         else:
             status_lines = []
             for member_id, approved in self.approvals.items():
@@ -210,8 +218,8 @@ class DilutionContract(discord.ui.View):
                 title = f"Dilution Globale ({self.amount:.2f}% alloués à {self.new_member_name})"
                 details = f"Le Board a validé une dilution globale à l'unanimité. {self.amount:.2f}% des parts ont été créées et allouées à {self.new_member_name}."
                 
-                pdf_file = generate_certificate(self.contract_id, title, details, resolved_shares)
-                await self.update_message(interaction, pdf_file=pdf_file)
+                pdf_file, file_hash = generate_certificate(self.contract_id, title, details, resolved_shares)
+                await self.update_message(interaction, pdf_file=pdf_file, file_hash=file_hash)
                 return
                     
             except ValueError as e:

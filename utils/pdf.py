@@ -27,18 +27,9 @@ class PDF(FPDF):
         self.set_font('helvetica', 'I', 8)
         self.cell(0, 5, f'Certificat généré automatiquement le {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}', align='C')
         self.ln()
-        if hasattr(self, 'doc_hash'):
-            self.set_font('helvetica', 'I', 6)
-            self.set_text_color(150, 150, 150)
-            self.cell(0, 5, f'SHA-256 Fingerprint: {self.doc_hash}', align='C')
 
-def generate_certificate(contract_id: str, title: str, details_text: str, resolved_shares: dict) -> discord.File:
-    timestamp = datetime.now().isoformat()
-    raw_data = f"{contract_id}|{title}|{details_text}|{json.dumps(resolved_shares, sort_keys=True)}|{timestamp}"
-    doc_hash = hashlib.sha256(raw_data.encode('utf-8')).hexdigest()
-
+def generate_certificate(contract_id: str, title: str, details_text: str, resolved_shares: dict):
     pdf = PDF()
-    pdf.doc_hash = doc_hash
     pdf.add_page()
     
     pdf.ln(10)
@@ -125,4 +116,7 @@ def generate_certificate(contract_id: str, title: str, details_text: str, resolv
     temp_path = os.path.join(tempfile.gettempdir(), f"cert_{contract_id}.pdf")
     pdf.output(temp_path)
     
-    return discord.File(temp_path, filename=f"Certificat_{contract_id}.pdf")
+    with open(temp_path, "rb") as f:
+        file_hash = hashlib.sha256(f.read()).hexdigest()
+    
+    return discord.File(temp_path, filename=f"Certificat_{contract_id}.pdf"), file_hash
