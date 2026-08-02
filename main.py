@@ -133,6 +133,9 @@ class TransferContract(discord.ui.View):
         
         self.sender_signed = False
         self.receiver_signed = False
+        
+        # On masque le bouton du receveur initialement
+        self.remove_item(self.sign_receiver)
 
     async def update_message(self, interaction: discord.Interaction):
         if not interaction.message or not interaction.message.embeds:
@@ -180,24 +183,12 @@ class TransferContract(discord.ui.View):
             return await interaction.response.send_message("❌ Ce compte n'a pas de propriétaire assigné. Seul un administrateur peut forcer l'envoi.", ephemeral=True)
             
         self.sender_signed = True
-        button.disabled = True
-        button.style = discord.ButtonStyle.success
         
-        if self.sender_signed and self.receiver_signed:
-            try:
-                manager.transfer(self.source_id_str, self.target_id_str, self.amount, "Contrat Double", self.contract_id)
-            except ValueError as e:
-                # Si erreur de solde, on annule le contrat
-                embed = interaction.message.embeds[0] if interaction.message and interaction.message.embeds else discord.Embed()
-                embed.color = discord.Color.red()
-                embed.title = f"❌ Contrat Annulé : Erreur"
-                embed.add_field(name="Raison", value=str(e), inline=False)
-                for child in self.children:
-                    if hasattr(child, 'disabled'):
-                        child.disabled = True # type: ignore
-                await interaction.response.edit_message(embed=embed, view=self)
-                return
-            
+        # Au lieu de juste désactiver, on fait un workflow séquentiel :
+        # On supprime le bouton expediteur et on affiche celui du receveur
+        self.remove_item(self.sign_sender)
+        self.add_item(self.sign_receiver)
+        
         await self.update_message(interaction)
 
     @discord.ui.button(label="✍️ Signer (Receveur)", style=discord.ButtonStyle.primary)
@@ -345,10 +336,7 @@ async def on_ready():
     print(f'Bot Cap Table connecté : {bot.user} (ID: {bot_id})')
     print('------')
 
-def generate_quickchart_url(shares):
-    labels = list(shares.keys())
-    data = list(shares.values())
-    
+def generate_quickchart_url(labels, data):
     # Palette professionnelle
     colors = ["#2b6cb0", "#c53030", "#38a169", "#d69e2e", "#805ad5", "#319795"]
     
@@ -384,6 +372,23 @@ async def parts(ctx: commands.Context[Any]):
     if not shares:
         await ctx.send("Aucune part enregistrée.")
         return
+        
+    resolved_labels = []
+    for k in shares.keys():
+        if k == OWNER_ID:
+            resolved_labels.append("Owner")
+        else:
+            try:
+                member = ctx.guild.get_member(int(k)) if ctx.guild else None
+                if member:
+                    resolved_labels.append(member.display_name)
+                else:
+                    resolved_labels.append(f"Inconnu ({k})")
+            except ValueError:
+                resolved_labels.append(str(k))
+                
+    labels = resolved_labels
+    data = list(shares.values())
     
     embed = discord.Embed(
         title="📊 Table de Capitalisation - Ondura", 
@@ -397,9 +402,9 @@ async def parts(ctx: commands.Context[Any]):
     description += "-" * 46 + "\n"
     
     total = 0.0
-    for member, percentage in shares.items():
+    for name, percentage in zip(labels, data):
         decimal_val = percentage / 100.0
-        description += f"{member:<20} | {percentage:>8.2f}% | {decimal_val:>8.4f}\n"
+        description += f"{name[:19]:<20} | {percentage:>8.2f}% | {decimal_val:>8.4f}\n"
         total += percentage
         
     description += "-" * 46 + "\n"
@@ -409,7 +414,7 @@ async def parts(ctx: commands.Context[Any]):
     embed.add_field(name="Détail des actions", value=description, inline=False)
     
     # Ajout du graphique via QuickChart (zéro RAM utilisée)
-    chart_url = generate_quickchart_url(shares)
+    chart_url = generate_quickchart_url(labels, data)
     embed.set_image(url=chart_url)
     
     icon_url = bot.user.avatar.url if bot.user and bot.user.avatar else None
