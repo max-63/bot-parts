@@ -60,7 +60,7 @@ async def global_check(ctx: commands.Context):
         board.remove(owner_env)
         
     if user_id_str not in board:
-        await ctx.send("❌ Dégage le clochard, tu n'as même pas de parts dans la Cap Table ! T'as cru t'étais un actionnaire ?", ephemeral=True)
+        await ctx.send("❌ Accès refusé : Vous ne faites pas partie de la Cap Table. Seuls les actionnaires peuvent utiliser cette commande.", ephemeral=True)
         return False
         
     return True
