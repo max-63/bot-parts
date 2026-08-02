@@ -7,7 +7,7 @@ from core.manager import manager
 from utils.pdf import generate_certificate
 import os
 
-OWNER_ID = os.getenv("OWNER_ID", "Owner")
+UNASSIGNED_SHARES_KEY = "Owner"
 
 async def get_resolved_shares(client, shares):
     resolved_shares = {}
@@ -245,8 +245,8 @@ class DilutionContract(discord.ui.View):
 def get_current_board_ids():
     shares = manager.get_shares()
     board = list(shares.keys())
-    if OWNER_ID in board:
-        board.remove(OWNER_ID)
+    if UNASSIGNED_SHARES_KEY in board:
+        board.remove(UNASSIGNED_SHARES_KEY)
     return board
 
 class TransactionsCog(commands.Cog):
@@ -324,7 +324,7 @@ class TransactionsCog(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def claim(self, ctx: commands.Context[Any]):
         try:
-            owner_shares = manager.shares.get(OWNER_ID, 0.0)
+            owner_shares = manager.shares.get(UNASSIGNED_SHARES_KEY, 0.0)
             if owner_shares <= 0:
                 await ctx.send("❌ Le compte `Owner` n'a plus de parts à distribuer.")
                 return
@@ -333,7 +333,7 @@ class TransactionsCog(commands.Cog):
             admin_name = ctx.author.display_name
             contract_id = str(uuid.uuid4())[:8].upper()
             
-            manager.transfer(OWNER_ID, admin_id_str, owner_shares, str(ctx.author), contract_id)
+            manager.transfer(UNASSIGNED_SHARES_KEY, admin_id_str, owner_shares, str(ctx.author), contract_id)
             # Force explicite de la sauvegarde pour éviter les soucis
             manager.save_shares()
             

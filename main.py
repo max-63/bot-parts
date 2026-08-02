@@ -55,7 +55,7 @@ async def global_check(ctx: commands.Context):
         
     user_id_str = str(ctx.author.id)
     board = list(manager.get_shares().keys())
-    owner_env = os.getenv("OWNER_ID", "Owner")
+    owner_env = "Owner"
     if owner_env in board:
         board.remove(owner_env)
         

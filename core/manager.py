@@ -8,7 +8,7 @@ class SharesManager:
         self.filename = filename
         self.history_filename = history_filename
         self.config_filename = config_filename
-        self.owner_id = os.getenv("OWNER_ID", "Owner")
+        self.owner_id = "Owner"
         self.shares = self.load_shares()
         self.history = self.load_history()
         self.config = self.load_config()
