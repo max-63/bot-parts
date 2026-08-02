@@ -117,11 +117,6 @@ class SharesManager:
 
 manager = SharesManager(SHARES_FILE, HISTORY_FILE)
 
-# --- Utilitaires ---
-def extract_id(mention: str) -> Optional[int]:
-    match = re.search(r'<@!?(\d+)>', mention)
-    return int(match.group(1)) if match else None
-
 # --- UI Components pour les Contrats ---
 
 class TransferContract(discord.ui.View):
@@ -187,7 +182,19 @@ class TransferContract(discord.ui.View):
         button.style = discord.ButtonStyle.success
         
         if self.sender_signed and self.receiver_signed:
-            manager.transfer(self.source, self.target, self.amount, "Contrat Double", self.contract_id)
+            try:
+                manager.transfer(self.source, self.target, self.amount, "Contrat Double", self.contract_id)
+            except ValueError as e:
+                # Si erreur de solde, on annule le contrat
+                embed = interaction.message.embeds[0] if interaction.message and interaction.message.embeds else discord.Embed()
+                embed.color = discord.Color.red()
+                embed.title = f"❌ Contrat Annulé : Erreur"
+                embed.add_field(name="Raison", value=str(e), inline=False)
+                for child in self.children:
+                    if hasattr(child, 'disabled'):
+                        child.disabled = True # type: ignore
+                await interaction.response.edit_message(embed=embed, view=self)
+                return
             
         await self.update_message(interaction)
 
@@ -204,7 +211,18 @@ class TransferContract(discord.ui.View):
         button.style = discord.ButtonStyle.success
         
         if self.sender_signed and self.receiver_signed:
-            manager.transfer(self.source, self.target, self.amount, "Contrat Double", self.contract_id)
+            try:
+                manager.transfer(self.source, self.target, self.amount, "Contrat Double", self.contract_id)
+            except ValueError as e:
+                embed = interaction.message.embeds[0] if interaction.message and interaction.message.embeds else discord.Embed()
+                embed.color = discord.Color.red()
+                embed.title = f"❌ Contrat Annulé : Erreur"
+                embed.add_field(name="Raison", value=str(e), inline=False)
+                for child in self.children:
+                    if hasattr(child, 'disabled'):
+                        child.disabled = True # type: ignore
+                await interaction.response.edit_message(embed=embed, view=self)
+                return
             
         await self.update_message(interaction)
 
@@ -265,6 +283,18 @@ class DilutionContract(discord.ui.View):
             
             if hasattr(interaction.channel, 'send') and interaction.channel:
                 await getattr(interaction.channel, 'send')(f"📉 **Cap Table mise à jour.** Les parts ont été diluées pour l'entrée de `{self.new_member}` avec **{self.amount:.2f}%**.")
+        except ValueError as e:
+            if interaction.message and interaction.message.embeds:
+                embed = interaction.message.embeds[0]
+                embed.color = discord.Color.red()
+                embed.title = f"❌ Dilution Annulée : Erreur"
+                embed.add_field(name="Raison", value=str(e), inline=False)
+                for child in self.children:
+                    if hasattr(child, 'disabled'):
+                        child.disabled = True # type: ignore
+                await interaction.response.edit_message(embed=embed, view=self)
+            else:
+                await interaction.response.send_message(f"❌ Erreur : {e}", ephemeral=True)
         except Exception as e:
             await interaction.response.send_message(f"❌ Erreur lors de l'exécution : {e}", ephemeral=True)
 
@@ -293,7 +323,6 @@ class DilutionContract(discord.ui.View):
 class SharesBot(commands.Bot):
     def __init__(self):
         intents = discord.Intents.default()
-        intents.message_content = True
         super().__init__(command_prefix='!', intents=intents)
 
     async def setup_hook(self):
@@ -404,31 +433,25 @@ async def historique(ctx: commands.Context[Any]):
     await ctx.send(embed=embed)
 
 @bot.hybrid_command(name="donner", description="Génère un contrat de transfert de parts.")
-@app_commands.describe(source="L'actionnaire qui donne (Mentions @Pseudo ou 'Owner')", cible="Le receveur (Mentions @Pseudo)", pourcentage="Montant en %")
-async def donner(ctx: commands.Context[Any], source: str, cible: str, pourcentage: float):
+@app_commands.describe(source="L'actionnaire qui donne", cible="Le receveur", pourcentage="Montant en %")
+async def donner(ctx: commands.Context[Any], source: discord.Member, cible: discord.Member, pourcentage: float):
     try:
         pourcentage = round(pourcentage, 2)
         if pourcentage <= 0:
             raise ValueError("Le pourcentage doit être supérieur à 0.")
             
-        target_id = extract_id(cible)
-        if not target_id:
-            await ctx.send("❌ **Erreur :** Le receveur (`cible`) doit obligatoirement être mentionné avec un @ (Ex: @Adrien).", ephemeral=True)
-            return
-            
-        source_id = extract_id(source)
-        if source_id is None and source.lower() != "owner":
-            source_id = ctx.author.id
-            
-        view = TransferContract(source, cible, pourcentage, source_id, target_id)
+        source_name = source.display_name
+        cible_name = cible.display_name
+        
+        view = TransferContract(source_name, cible_name, pourcentage, source.id, cible.id)
         
         embed = discord.Embed(
             title="📜 Contrat de Transfert - En Attente",
             description=f"Demande de transfert d'équité initiée par {ctx.author.mention}.\n\nCe contrat doit être signé par **les deux parties** pour être validé.",
             color=0xd69e2e
         )
-        embed.add_field(name="Expéditeur", value=f"{source}", inline=True)
-        embed.add_field(name="Bénéficiaire", value=f"{cible}", inline=True)
+        embed.add_field(name="Expéditeur", value=f"{source_name}", inline=True)
+        embed.add_field(name="Bénéficiaire", value=f"{cible_name}", inline=True)
         embed.add_field(name="Montant", value=f"**{pourcentage:.2f}%**", inline=False)
         embed.add_field(name="Statut des Signatures", value="Expéditeur : ⏳ En attente\nReceveur : ⏳ En attente", inline=False)
         
@@ -439,11 +462,28 @@ async def donner(ctx: commands.Context[Any], source: str, cible: str, pourcentag
     except Exception as e:
         await ctx.send(f"❌ Erreur : {e}")
 
-@bot.hybrid_command(name="diluer", description="Génère un contrat de dilution pour entrer un nouvel actionnaire.")
-@app_commands.describe(nouveau_membre="Nom du nouvel actionnaire", pourcentage="Pourcentage alloué (ex: 10)")
-async def diluer(ctx: commands.Context[Any], nouveau_membre: str, pourcentage: float):
+@bot.hybrid_command(name="claim", description="[ADMIN] S'attribue les 100% de base du compte fictif 'Owner'.")
+@commands.has_permissions(administrator=True)
+async def claim(ctx: commands.Context[Any]):
     try:
-        view = DilutionContract(nouveau_membre, pourcentage)
+        owner_shares = manager.shares.get(OWNER_ID, 0.0)
+        if owner_shares <= 0:
+            await ctx.send("❌ Le compte `Owner` n'a plus de parts à distribuer.")
+            return
+            
+        admin_name = ctx.author.display_name
+        contract_id = str(uuid.uuid4())[:8].upper()
+        
+        manager.transfer(OWNER_ID, admin_name, owner_shares, str(ctx.author), contract_id)
+        await ctx.send(f"🎉 **Succès !** `{admin_name}` vient de réclamer les {owner_shares:.2f}% de `Owner`. Vous pouvez maintenant utiliser l'autocomplétion native pour transférer vos parts !")
+    except Exception as e:
+        await ctx.send(f"❌ Erreur : {e}")
+
+@bot.hybrid_command(name="diluer", description="Génère un contrat de dilution pour entrer un nouvel actionnaire.")
+@app_commands.describe(nouveau_membre="Nouvel actionnaire", pourcentage="Pourcentage alloué (ex: 10)")
+async def diluer(ctx: commands.Context[Any], nouveau_membre: discord.Member, pourcentage: float):
+    try:
+        view = DilutionContract(nouveau_membre.display_name, pourcentage)
         
         embed = discord.Embed(
             title="⚖️ Contrat de Dilution - En Attente",
