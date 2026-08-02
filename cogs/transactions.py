@@ -274,6 +274,11 @@ class TransactionsCog(commands.Cog):
                 
             view = TransferContract(source_id_str, cible_id_str, source_name, cible_name, pourcentage, board)
             
+            # Auto-approbation de l'initiateur s'il fait partie du board
+            author_id_str = str(ctx.author.id)
+            if author_id_str in view.approvals:
+                view.approvals[author_id_str] = True
+            
             embed = discord.Embed(
                 title="📜 Contrat de Transfert - En Attente de Consensus",
                 description=f"Demande de transfert d'équité initiée par {ctx.author.mention}.\n\n⚠️ **Règle d'Agrément** : Ce contrat doit être approuvé par **100% de la Cap Table actuelle** pour être validé.",
@@ -283,7 +288,11 @@ class TransactionsCog(commands.Cog):
             embed.add_field(name="Bénéficiaire", value=f"{cible_name}", inline=True)
             embed.add_field(name="Montant", value=f"**{pourcentage:.2f}%**", inline=False)
             
-            status_lines = [f"⏳ En attente : <@{m}>" for m in board]
+            status_lines = []
+            for m in board:
+                status = "✅ Approuvé" if view.approvals.get(m) else "⏳ En attente"
+                status_lines.append(f"{status} : <@{m}>")
+                
             embed.add_field(name="Board Approval (Consensus)", value="\n".join(status_lines), inline=False)
             embed.set_footer(text=f"ID Contrat : {view.contract_id} | Consensus Global Requis")
             
@@ -304,6 +313,11 @@ class TransactionsCog(commands.Cog):
             
             view = DilutionContract(new_member_id_str, new_member_name, pourcentage, board)
             
+            # Auto-approbation de l'initiateur s'il fait partie du board
+            author_id_str = str(ctx.author.id)
+            if author_id_str in view.approvals:
+                view.approvals[author_id_str] = True
+            
             embed = discord.Embed(
                 title="⚖️ Contrat de Dilution - En Attente de Consensus",
                 description=f"Demande de dilution globale de la Cap Table initiée par {ctx.author.mention}.\n\n⚠️ Une dilution réduit la valeur des parts de tous les actionnaires actuels. **L'accord unanime du Board est requis.**",
@@ -312,7 +326,11 @@ class TransactionsCog(commands.Cog):
             embed.add_field(name="Nouvel Actionnaire", value=f"`{nouveau_membre}`", inline=True)
             embed.add_field(name="Parts allouées", value=f"**{pourcentage:.2f}%**", inline=True)
             
-            status_lines = [f"⏳ En attente : <@{m}>" for m in board]
+            status_lines = []
+            for m in board:
+                status = "✅ Approuvé" if view.approvals.get(m) else "⏳ En attente"
+                status_lines.append(f"{status} : <@{m}>")
+                
             embed.add_field(name="Board Approval (Consensus)", value="\n".join(status_lines), inline=False)
             embed.set_footer(text=f"ID Contrat : {view.contract_id} | Consensus Global Requis")
             
