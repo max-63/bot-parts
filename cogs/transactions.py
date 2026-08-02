@@ -82,18 +82,12 @@ class TransferContract(discord.ui.View):
     @discord.ui.button(label="✅ Approuver la transaction", style=discord.ButtonStyle.success)
     async def approve_button(self, interaction: discord.Interaction, button: discord.ui.Button[Any]):
         user_id_str = str(interaction.user.id)
-        if user_id_str not in self.board and not interaction.user.guild_permissions.administrator:
+        if user_id_str not in self.board:
             return await interaction.response.send_message("❌ Vous ne faites pas partie de la Cap Table, vous ne pouvez pas voter.", ephemeral=True)
             
-        if interaction.user.guild_permissions.administrator and user_id_str not in self.board:
-            # Force approve all if admin
-            for m in self.approvals:
-                self.approvals[m] = True
-            await interaction.response.send_message("Force Approval exécuté par un admin.", ephemeral=True)
-        else:
-            if self.approvals.get(user_id_str):
-                return await interaction.response.send_message("Vous avez déjà approuvé.", ephemeral=True)
-            self.approvals[user_id_str] = True
+        if self.approvals.get(user_id_str):
+            return await interaction.response.send_message("Vous avez déjà approuvé.", ephemeral=True)
+        self.approvals[user_id_str] = True
             
         all_approved = all(self.approvals.values())
         
@@ -123,7 +117,7 @@ class TransferContract(discord.ui.View):
     @discord.ui.button(label="❌ Veto (Annuler)", style=discord.ButtonStyle.danger)
     async def veto_button(self, interaction: discord.Interaction, button: discord.ui.Button[Any]):
         user_id_str = str(interaction.user.id)
-        if user_id_str not in self.board and not interaction.user.guild_permissions.administrator:
+        if user_id_str not in self.board:
             return await interaction.response.send_message("❌ Vous ne faites pas partie de la Cap Table, vous ne pouvez pas mettre de Veto.", ephemeral=True)
             
         for child in self.children:
@@ -196,17 +190,12 @@ class DilutionContract(discord.ui.View):
     @discord.ui.button(label="✅ Approuver la Dilution", style=discord.ButtonStyle.success)
     async def sign_button(self, interaction: discord.Interaction, button: discord.ui.Button[Any]):
         user_id_str = str(interaction.user.id)
-        if user_id_str not in self.board and not interaction.user.guild_permissions.administrator:
+        if user_id_str not in self.board:
             return await interaction.response.send_message("❌ Vous ne faites pas partie de la Cap Table, vous ne pouvez pas voter.", ephemeral=True)
 
-        if interaction.user.guild_permissions.administrator and user_id_str not in self.board:
-            for m in self.approvals:
-                self.approvals[m] = True
-            await interaction.response.send_message("Force Approval exécuté par un admin.", ephemeral=True)
-        else:
-            if self.approvals.get(user_id_str):
-                return await interaction.response.send_message("Vous avez déjà approuvé.", ephemeral=True)
-            self.approvals[user_id_str] = True
+        if self.approvals.get(user_id_str):
+            return await interaction.response.send_message("Vous avez déjà approuvé.", ephemeral=True)
+        self.approvals[user_id_str] = True
 
         all_approved = all(self.approvals.values())
 
@@ -238,7 +227,7 @@ class DilutionContract(discord.ui.View):
     @discord.ui.button(label="❌ Veto (Annuler)", style=discord.ButtonStyle.danger)
     async def veto_button(self, interaction: discord.Interaction, button: discord.ui.Button[Any]):
         user_id_str = str(interaction.user.id)
-        if user_id_str not in self.board and not interaction.user.guild_permissions.administrator:
+        if user_id_str not in self.board:
             return await interaction.response.send_message("❌ Vous ne faites pas partie de la Cap Table, vous ne pouvez pas mettre de Veto.", ephemeral=True)
             
         for child in self.children:
