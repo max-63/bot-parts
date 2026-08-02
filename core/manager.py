@@ -4,12 +4,27 @@ from datetime import datetime
 import uuid
 
 class SharesManager:
-    def __init__(self, filename, history_filename):
+    def __init__(self, filename, history_filename, config_filename="config.json"):
         self.filename = filename
         self.history_filename = history_filename
+        self.config_filename = config_filename
         self.owner_id = os.getenv("OWNER_ID", "Owner")
         self.shares = self.load_shares()
         self.history = self.load_history()
+        self.config = self.load_config()
+
+    def load_config(self):
+        if not os.path.exists(self.config_filename):
+            return {"active_channel_id": None}
+        try:
+            with open(self.config_filename, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception:
+            return {"active_channel_id": None}
+
+    def save_config(self):
+        with open(self.config_filename, 'w', encoding='utf-8') as f:
+            json.dump(self.config, f, indent=4)
 
     def load_shares(self):
         if not os.path.exists(self.filename):
