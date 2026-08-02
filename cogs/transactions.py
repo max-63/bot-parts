@@ -39,7 +39,7 @@ class TransferContract(discord.ui.View):
         
         self.remove_item(self.sign_receiver)
 
-    async def update_message(self, interaction: discord.Interaction):
+    async def update_message(self, interaction: discord.Interaction, pdf_file=None):
         if not interaction.message or not interaction.message.embeds:
             return
             
@@ -56,7 +56,10 @@ class TransferContract(discord.ui.View):
             await interaction.response.edit_message(embed=embed, view=self)
             
             if hasattr(interaction.channel, 'send') and interaction.channel:
-                await getattr(interaction.channel, 'send')(f"🎉 **Transaction scellée.** `{self.source_name}` a transféré **{self.amount:.2f}%** à `{self.target_name}`. Un certificat a été envoyé en MP.")
+                if pdf_file:
+                    await getattr(interaction.channel, 'send')(f"🎉 **Transaction scellée.** `{self.source_name}` a transféré **{self.amount:.2f}%** à `{self.target_name}`.", file=pdf_file)
+                else:
+                    await getattr(interaction.channel, 'send')(f"🎉 **Transaction scellée.** `{self.source_name}` a transféré **{self.amount:.2f}%** à `{self.target_name}`.")
         else:
             status_text = f"Expéditeur : {'✅ Signé' if self.sender_signed else '⏳ En attente'}\n"
             status_text += f"Receveur : {'✅ Signé' if self.receiver_signed else '⏳ En attente'}"
@@ -104,24 +107,15 @@ class TransferContract(discord.ui.View):
         try:
             manager.transfer(self.source_id_str, self.target_id_str, self.amount, "Contrat Double", self.contract_id)
             
-            # PDF Generation & DM
+            # PDF Generation
             resolved_shares = await get_resolved_shares(interaction.client, manager.get_shares())
             title = f"Transfert de parts ({self.amount:.2f}%)"
             details = f"L'actionnaire {self.source_name} a transféré {self.amount:.2f}% de ses parts à {self.target_name}."
             
-            try:
-                source_user = await interaction.client.fetch_user(int(self.source_id_str))
-                pdf1 = generate_certificate(self.contract_id, title, details, resolved_shares)
-                await source_user.send(f"📄 Bonjour {self.source_name}, voici votre certificat de transfert.", file=pdf1)
-            except Exception:
-                pass
-                
-            try:
-                target_user = await interaction.client.fetch_user(int(self.target_id_str))
-                pdf2 = generate_certificate(self.contract_id, title, details, resolved_shares)
-                await target_user.send(f"📄 Bonjour {self.target_name}, voici votre certificat de réception de parts.", file=pdf2)
-            except Exception:
-                pass
+            pdf_file = generate_certificate(self.contract_id, title, details, resolved_shares)
+            
+            await self.update_message(interaction, pdf_file=pdf_file)
+            return
 
         except ValueError as e:
             embed = interaction.message.embeds[0] if interaction.message and interaction.message.embeds else discord.Embed()
@@ -183,18 +177,7 @@ class DilutionContract(discord.ui.View):
             title = f"Dilution Globale ({self.amount:.2f}% alloués à {self.new_member_name})"
             details = f"L'administrateur {interaction.user} a validé une dilution globale. {self.amount:.2f}% des parts ont été créées et allouées à {self.new_member_name}."
             
-            try:
-                new_member = await interaction.client.fetch_user(int(self.new_member_id_str))
-                pdf1 = generate_certificate(self.contract_id, title, details, resolved_shares)
-                await new_member.send(f"📄 Bonjour {self.new_member_name}, vous avez reçu vos parts suite à une dilution.", file=pdf1)
-            except:
-                pass
-                
-            try:
-                pdf2 = generate_certificate(self.contract_id, title, details, resolved_shares)
-                await interaction.user.send(f"📄 Copie du certificat de dilution.", file=pdf2)
-            except:
-                pass
+            pdf_file = generate_certificate(self.contract_id, title, details, resolved_shares)
 
             for child in self.children:
                 if hasattr(child, 'disabled'):
@@ -208,7 +191,7 @@ class DilutionContract(discord.ui.View):
                 await interaction.response.edit_message(embed=embed, view=self)
             
             if hasattr(interaction.channel, 'send') and interaction.channel:
-                await getattr(interaction.channel, 'send')(f"📉 **Cap Table mise à jour.** Les parts ont été diluées pour l'entrée de `{self.new_member_name}`. Certificats envoyés en MP.")
+                await getattr(interaction.channel, 'send')(f"📉 **Cap Table mise à jour.** Les parts ont été diluées pour l'entrée de `{self.new_member_name}`.", file=pdf_file)
                 
         except ValueError as e:
             if interaction.message and interaction.message.embeds:
