@@ -99,19 +99,40 @@ class CapTableCog(commands.Cog):
         embed = await self.build_parts_embed()
         await ctx.send(embed=embed)
 
-    @commands.hybrid_command(name="spawn_dashboard", description="[CREATEUR] Crée le tableau de bord permanent.")
+    @commands.hybrid_command(name="spawn_dashboard", description="[CREATEUR] Crée automatiquement le salon dashboard en lecture seule.")
     async def spawn_dashboard(self, ctx: commands.Context[Any]):
         if ctx.guild and ctx.author.id != ctx.guild.owner_id:
             await ctx.send("❌ Seul le créateur du serveur peut faire ça.", ephemeral=True)
             return
             
-        embed = await self.build_parts_embed()
-        msg = await ctx.send(embed=embed)
+        guild = ctx.guild
+        if not guild:
+            return
+            
+        category_name = "🤝 business"
+        category = discord.utils.get(guild.categories, name=category_name)
+        if not category:
+            category = await guild.create_category(category_name)
+            
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(send_messages=False),
+            guild.me: discord.PermissionOverwrite(send_messages=True, embed_links=True)
+        }
         
-        manager.config["dashboard_channel_id"] = msg.channel.id  # pyright: ignore[reportArgumentType]
-        manager.config["dashboard_msg_id"] = msg.id  # pyright: ignore[reportArgumentType]
+        dashboard_channel = await guild.create_text_channel(
+            "dashboard",
+            category=category,
+            overwrites=overwrites,
+            topic="Tableau de bord de la Cap Table (Live)"
+        )
+            
+        embed = await self.build_parts_embed()
+        msg = await dashboard_channel.send(embed=embed)
+        
+        manager.config["dashboard_channel_id"] = dashboard_channel.id
+        manager.config["dashboard_msg_id"] = msg.id
         manager.save_config()
-        await ctx.send("✅ Dashboard installé avec succès ! Il s'actualisera tout seul.", ephemeral=True)
+        await ctx.send(f"✅ Le salon {dashboard_channel.mention} a été créé et le Dashboard y a été installé !", ephemeral=True)
 
     @commands.hybrid_command(name="historique", description="Génère un PDF avec l'historique depuis le dernier Reset.")
     async def historique(self, ctx: commands.Context[Any]):
