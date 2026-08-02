@@ -120,7 +120,7 @@ def generate_certificate(contract_id: str, title: str, details_text: str, resolv
     pdf.ln(15)
     pdf.set_font('helvetica', 'B', 14)
     pdf.set_text_color(39, 174, 96) # Vert
-    pdf.cell(0, 10, "✓ TRANSACTION VALIDEE PAR LE CONSEIL D'ADMINISTRATION", align='C')
+    pdf.cell(0, 10, "*** TRANSACTION VALIDEE PAR LE CONSEIL D'ADMINISTRATION ***", align='C')
     
     temp_path = os.path.join(tempfile.gettempdir(), f"cert_{contract_id}.pdf")
     pdf.output(temp_path)
