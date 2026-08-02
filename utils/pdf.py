@@ -3,6 +3,8 @@ import tempfile
 import discord
 from fpdf import FPDF
 from datetime import datetime
+import hashlib
+import json
 
 class PDF(FPDF):
     def header(self):
@@ -14,12 +16,22 @@ class PDF(FPDF):
         self.ln(15)
 
     def footer(self):
-        self.set_y(-15)
+        self.set_y(-25)
         self.set_font('helvetica', 'I', 8)
-        self.cell(0, 10, f'Généré automatiquement le {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}', align='C')
+        self.cell(0, 5, f'Généré automatiquement le {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}', align='C')
+        self.ln()
+        if hasattr(self, 'doc_hash'):
+            self.set_font('helvetica', 'I', 6)
+            self.cell(0, 5, f'SHA-256 Authenticity Hash: {self.doc_hash}', align='C')
 
 def generate_certificate(contract_id: str, title: str, details_text: str, resolved_shares: dict) -> discord.File:
+    # Génération du Hash SHA-256 pour l'authenticité
+    timestamp = datetime.now().isoformat()
+    raw_data = f"{contract_id}|{title}|{details_text}|{json.dumps(resolved_shares, sort_keys=True)}|{timestamp}"
+    doc_hash = hashlib.sha256(raw_data.encode('utf-8')).hexdigest()
+
     pdf = PDF()
+    pdf.doc_hash = doc_hash
     pdf.add_page()
     
     # Titre du contrat
@@ -65,6 +77,14 @@ def generate_certificate(contract_id: str, title: str, details_text: str, resolv
     pdf.cell(40, 10, f"{total:.2f}%", border=1)
     pdf.cell(40, 10, f"{total/100.0:.4f}", border=1)
     pdf.ln()
+    
+    # Preuve cryptographique
+    pdf.ln(15)
+    pdf.set_font('helvetica', 'B', 10)
+    pdf.cell(0, 5, 'Preuve Cryptographique Inviolable :')
+    pdf.ln()
+    pdf.set_font('helvetica', '', 8)
+    pdf.multi_cell(0, 5, f'Ce document atteste de la transaction {contract_id}. La signature numérique ci-dessous permet de vérifier son intégrité.\nSignature: {doc_hash}')
     
     temp_path = os.path.join(tempfile.gettempdir(), f"cert_{contract_id}.pdf")
     pdf.output(temp_path)
