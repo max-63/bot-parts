@@ -20,6 +20,7 @@ class SharesBot(commands.Bot):
         # Chargement des Cogs
         await self.load_extension("cogs.cap_table")
         await self.load_extension("cogs.transactions")
+        await self.load_extension("cogs.votes")
         
         if GUILD_ID:
             guild = discord.Object(id=GUILD_ID)
@@ -39,15 +40,20 @@ async def on_ready():
 
 @bot.check
 async def global_check(ctx: commands.Context):
-    if ctx.command and ctx.command.name in ["setup", "claim"]:
+    if ctx.command and ctx.command.name in ["setup", "setup_vote", "claim"]:
         return True
 
     # 1. Vérification du Salon
-    active_channel = manager.config.get("active_channel_id")
-    if active_channel and ctx.channel.id != active_channel:
-        # ctx.send with ephemeral works well for hybrid commands
-        await ctx.send("❌ Tu n'as pas le droit d'utiliser le bot des affaires dans ce salon, va jouer ailleurs !", ephemeral=True)
-        return False
+    if ctx.command and ctx.command.name == "vote":
+        vote_channel = manager.config.get("vote_channel_id")
+        if vote_channel and ctx.channel.id != vote_channel:
+            await ctx.send("❌ Les votes (Assemblée Générale) ne peuvent se faire que dans le salon dédié.", ephemeral=True)
+            return False
+    else:
+        active_channel = manager.config.get("active_channel_id")
+        if active_channel and ctx.channel.id != active_channel:
+            await ctx.send("❌ Tu n'as pas le droit d'utiliser le bot des affaires dans ce salon, va jouer ailleurs !", ephemeral=True)
+            return False
         
     # 2. Vérification de la Cap Table (sauf Administrateur Discord)
     if ctx.author.guild_permissions.administrator:
@@ -75,6 +81,17 @@ async def setup_cmd(ctx: commands.Context, salon: discord.TextChannel):
     manager.config["active_channel_id"] = salon.id  # pyright: ignore[reportArgumentType]
     manager.save_config()
     await ctx.send(f"✅ Le bot des affaires est désormais **exclusivement actif** dans le salon {salon.mention}.")
+
+@bot.hybrid_command(name="setup_vote", description="[CREATEUR] Définit le salon des votes (Assemblée Générale).")
+@app_commands.describe(salon="Le salon textuel autorisé pour les votes")
+async def setup_vote_cmd(ctx: commands.Context, salon: discord.TextChannel):
+    if ctx.guild and ctx.author.id != ctx.guild.owner_id:
+        await ctx.send("❌ Seul le créateur du serveur peut utiliser cette commande.", ephemeral=True)
+        return
+        
+    manager.config["vote_channel_id"] = salon.id
+    manager.save_config()
+    await ctx.send(f"✅ L'Assemblée Générale se tiendra désormais **exclusivement** dans le salon {salon.mention}.")
 
 if __name__ == "__main__":
     if not TOKEN:

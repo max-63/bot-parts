@@ -120,3 +120,32 @@ def generate_certificate(contract_id: str, title: str, details_text: str, resolv
         file_hash = hashlib.sha256(f.read()).hexdigest()
     
     return discord.File(temp_path, filename=f"Certificat_{contract_id}.pdf"), file_hash
+
+def generate_history_pdf(history_logs: list):
+    pdf = PDF()
+    pdf.add_page()
+    
+    pdf.ln(10)
+    pdf.set_font('helvetica', 'B', 16)
+    pdf.cell(0, 10, "REGISTRE OFFICIEL DES TRANSACTIONS", align='C')
+    pdf.ln(15)
+    
+    pdf.set_font('helvetica', '', 10)
+    
+    for entry in history_logs:
+        date_str = datetime.fromisoformat(entry['timestamp']).strftime('%Y-%m-%d %H:%M')
+        pdf.set_font('helvetica', 'B', 11)
+        pdf.cell(0, 8, f"[{entry['type']}] ID: {entry['id']} - {date_str}", ln=True)
+        
+        pdf.set_font('helvetica', '', 10)
+        pdf.multi_cell(0, 6, f"Action : {entry['details']}\nExécuteur : {entry['executor']}")
+        pdf.ln(5)
+        
+    pdf.ln(10)
+    pdf.set_font('helvetica', 'I', 8)
+    pdf.cell(0, 5, f'Généré automatiquement le {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}', align='C')
+    
+    temp_path = os.path.join(tempfile.gettempdir(), "Historique_CapTable.pdf")
+    pdf.output(temp_path)
+    
+    return discord.File(temp_path, filename="Historique_CapTable.pdf")

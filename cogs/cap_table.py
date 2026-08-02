@@ -5,6 +5,7 @@ import json
 import urllib.parse
 from datetime import datetime
 from core.manager import manager
+from utils.pdf import generate_history_pdf
 import os
 
 OWNER_ID = os.getenv("OWNER_ID", "Owner")
@@ -54,20 +55,17 @@ class CapTableCog(commands.Cog):
                     resolved_labels.append(f"Utilisateur {k}")
         return resolved_labels
 
-    @commands.hybrid_command(name="parts", description="Affiche la table de capitalisation sous forme de graphique professionnel.")
-    async def parts(self, ctx: commands.Context[Any]):
+    async def build_parts_embed(self):
         shares = manager.get_shares()
         if not shares:
-            await ctx.send("Aucune part enregistrée.")
-            return
+            return discord.Embed(title="📊 Table de Capitalisation", description="Aucune part enregistrée.")
             
-        # Résolution des noms via fetch_user (API en temps réel)
         labels = await self.get_resolved_labels(shares)
         data = list(shares.values())
         
         embed = discord.Embed(
-            title="📊 Table de Capitalisation - Ondura", 
-            description="Répartition actuelle de l'équité du projet.",
+            title="📊 Table de Capitalisation - Ondura (Live)", 
+            description="Répartition actuelle de l'équité du projet. Actualisé en temps réel.",
             color=0x2b6cb0,
             timestamp=datetime.now()
         )
@@ -93,26 +91,42 @@ class CapTableCog(commands.Cog):
         
         icon_url = self.bot.user.avatar.url if self.bot.user and self.bot.user.avatar else None
         embed.set_footer(text="Ondura Smart Contracts", icon_url=icon_url)
+        return embed
+
+    @commands.hybrid_command(name="parts", description="Affiche la table de capitalisation sous forme de graphique professionnel.")
+    async def parts(self, ctx: commands.Context[Any]):
+        embed = await self.build_parts_embed()
         await ctx.send(embed=embed)
 
-    @commands.hybrid_command(name="historique", description="Affiche les dernières transactions et contrats scellés.")
+    @commands.hybrid_command(name="spawn_dashboard", description="[CREATEUR] Crée le tableau de bord permanent.")
+    async def spawn_dashboard(self, ctx: commands.Context[Any]):
+        if ctx.guild and ctx.author.id != ctx.guild.owner_id:
+            await ctx.send("❌ Seul le créateur du serveur peut faire ça.", ephemeral=True)
+            return
+            
+        embed = await self.build_parts_embed()
+        msg = await ctx.send(embed=embed)
+        
+        manager.config["dashboard_channel_id"] = msg.channel.id  # pyright: ignore[reportArgumentType]
+        manager.config["dashboard_msg_id"] = msg.id  # pyright: ignore[reportArgumentType]
+        manager.save_config()
+        await ctx.send("✅ Dashboard installé avec succès ! Il s'actualisera tout seul.", ephemeral=True)
+
+    @commands.hybrid_command(name="historique", description="Génère un PDF avec l'historique depuis le dernier Reset.")
     async def historique(self, ctx: commands.Context[Any]):
         if not manager.history:
             await ctx.send("📝 Aucun historique disponible pour le moment.")
             return
             
-        embed = discord.Embed(title="📜 Historique des Transactions", color=0x718096, timestamp=datetime.now())
-        
-        recent_history = manager.history[-10:]
+        recent_history = []
+        for entry in reversed(manager.history):
+            recent_history.append(entry)
+            if entry.get("type") == "RESET":
+                break
         recent_history.reverse()
         
-        for entry in recent_history:
-            date_str = datetime.fromisoformat(entry['timestamp']).strftime('%Y-%m-%d %H:%M')
-            title = f"[{entry['type']}] ID: {entry['id']}"
-            desc = f"**Action:** {entry['details']}\n**Par:** `{entry['executor']}`\n*Le {date_str}*"
-            embed.add_field(name=title, value=desc, inline=False)
-            
-        await ctx.send(embed=embed)
+        pdf_file = generate_history_pdf(recent_history)
+        await ctx.send("📜 **Voici le registre officiel des transactions depuis la dernière réinitialisation :**", file=pdf_file)
 
     @commands.hybrid_command(name="reset", description="[ADMIN] Réinitialise la Cap Table (Attention !)")
     @commands.has_permissions(administrator=True)
@@ -120,8 +134,61 @@ class CapTableCog(commands.Cog):
         try:
             manager.reset(str(ctx.author))
             await ctx.send("🔄 **Cap Table réinitialisée.** `Owner` possède de nouveau 100% des parts.")
+            await refresh_dashboard(ctx.bot)
         except Exception as e:
             await ctx.send(f"❌ Erreur : {e}")
 
+    @commands.hybrid_command(name="dividendes", description="Simule la distribution d'une somme selon les parts de chacun.")
+    @app_commands.describe(montant="Le montant total à distribuer (en euros ou autre devise)")
+    async def dividendes(self, ctx: commands.Context[Any], montant: float):
+        shares = manager.get_shares()
+        if not shares:
+            await ctx.send("Aucune part enregistrée.")
+            return
+            
+        labels = await self.get_resolved_labels(shares)
+        data = list(shares.values())
+        
+        embed = discord.Embed(
+            title="💰 Simulateur de Dividendes",
+            description=f"Répartition de **{montant:,.2f}** selon la table de capitalisation actuelle.",
+            color=0x38a169,
+            timestamp=datetime.now()
+        )
+        
+        description = "```\n"
+        description += f"{'Actionnaire':<20} | {'Parts':<8} | {'Montant':<12}\n"
+        description += "-" * 47 + "\n"
+        
+        total_distrib = 0.0
+        for name, percentage in zip(labels, data):
+            part_val = (percentage / 100.0) * montant
+            description += f"{name[:19]:<20} | {percentage:>7.2f}% | {part_val:>11,.2f}\n"
+            total_distrib += part_val
+            
+        description += "-" * 47 + "\n"
+        description += f"{'TOTAL':<20} | {100.0:>7.2f}% | {total_distrib:>11,.2f}\n"
+        description += "```"
+        
+        embed.add_field(name="Détail de la répartition", value=description, inline=False)
+        await ctx.send(embed=embed)
+
 async def setup(bot):
     await bot.add_cog(CapTableCog(bot))
+
+async def refresh_dashboard(client: discord.Client):
+    channel_id = manager.config.get("dashboard_channel_id")
+    msg_id = manager.config.get("dashboard_msg_id")
+    if not channel_id or not msg_id:
+        return
+        
+    try:
+        channel = client.get_channel(channel_id) or await client.fetch_channel(channel_id)
+        msg = await channel.fetch_message(msg_id)
+        
+        cog = client.get_cog("CapTableCog")
+        if cog:
+            embed = await cog.build_parts_embed() # type: ignore
+            await msg.edit(embed=embed)
+    except Exception as e:
+        print(f"Failed to update dashboard: {e}")
