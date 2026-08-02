@@ -5,6 +5,7 @@ from typing import Any, Optional
 import uuid
 from core.manager import manager
 from utils.pdf import generate_certificate
+from cogs.cap_table import refresh_dashboard
 import os
 
 UNASSIGNED_SHARES_KEY = "Owner"
@@ -100,6 +101,7 @@ class TransferContract(discord.ui.View):
                 details = f"L'actionnaire {self.source_name} a transféré {self.amount:.2f}% de ses parts à {self.target_name} avec l'approbation unanime du Board."
                 pdf_file, file_hash = generate_certificate(self.contract_id, title, details, resolved_shares)
                 await self.update_message(interaction, pdf_file=pdf_file, file_hash=file_hash)
+                await refresh_dashboard(interaction.client)
                 return
             except ValueError as e:
                 embed = interaction.message.embeds[0] if interaction.message and interaction.message.embeds else discord.Embed()
@@ -209,6 +211,7 @@ class DilutionContract(discord.ui.View):
                 
                 pdf_file, file_hash = generate_certificate(self.contract_id, title, details, resolved_shares)
                 await self.update_message(interaction, pdf_file=pdf_file, file_hash=file_hash)
+                await refresh_dashboard(interaction.client)
                 return
                     
             except ValueError as e:
@@ -338,6 +341,7 @@ class TransactionsCog(commands.Cog):
             manager.save_shares()
             
             await ctx.send(f"🎉 **Succès !** `{admin_name}` vient de réclamer les {owner_shares:.2f}% de `Owner`. La Cap Table est désormais active !")
+            await refresh_dashboard(ctx.bot)
         except Exception as e:
             await ctx.send(f"❌ Erreur : {e}")
 
