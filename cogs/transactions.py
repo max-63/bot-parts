@@ -12,8 +12,8 @@ OWNER_ID = os.getenv("OWNER_ID", "Owner")
 async def get_resolved_shares(client, shares):
     resolved_shares = {}
     for k, v in shares.items():
-        if k == OWNER_ID or k == "Owner":
-            resolved_shares["Owner"] = v
+        if k == "Owner":
+            resolved_shares["Owner (Non Réclamé)"] = v
         else:
             try:
                 user = await client.fetch_user(int(k))

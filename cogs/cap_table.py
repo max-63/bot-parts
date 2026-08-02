@@ -43,8 +43,8 @@ class CapTableCog(commands.Cog):
     async def get_resolved_labels(self, shares):
         resolved_labels = []
         for k in shares.keys():
-            if k == OWNER_ID or k == "Owner":
-                resolved_labels.append("Owner")
+            if k == "Owner":
+                resolved_labels.append("Owner (Non Réclamé)")
             else:
                 try:
                     # Utilisation de fetch_user pour éviter les problèmes de cache (Inconnu)
