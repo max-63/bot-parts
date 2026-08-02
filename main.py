@@ -185,7 +185,7 @@ class TransferContract(discord.ui.View):
         
         if self.sender_signed and self.receiver_signed:
             try:
-                manager.transfer(self.source, self.target, self.amount, "Contrat Double", self.contract_id)
+                manager.transfer(self.source_id_str, self.target_id_str, self.amount, "Contrat Double", self.contract_id)
             except ValueError as e:
                 # Si erreur de solde, on annule le contrat
                 embed = interaction.message.embeds[0] if interaction.message and interaction.message.embeds else discord.Embed()
@@ -214,7 +214,7 @@ class TransferContract(discord.ui.View):
         
         if self.sender_signed and self.receiver_signed:
             try:
-                manager.transfer(self.source, self.target, self.amount, "Contrat Double", self.contract_id)
+                manager.transfer(self.source_id_str, self.target_id_str, self.amount, "Contrat Double", self.contract_id)
             except ValueError as e:
                 embed = interaction.message.embeds[0] if interaction.message and interaction.message.embeds else discord.Embed()
                 embed.color = discord.Color.red()
