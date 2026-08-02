@@ -120,10 +120,12 @@ manager = SharesManager(SHARES_FILE, HISTORY_FILE)
 # --- UI Components pour les Contrats ---
 
 class TransferContract(discord.ui.View):
-    def __init__(self, source: str, target: str, amount: float, source_user_id: Optional[int], target_user_id: int):
+    def __init__(self, source_id_str: str, target_id_str: str, source_name: str, target_name: str, amount: float, source_user_id: Optional[int], target_user_id: int):
         super().__init__(timeout=86400) # Expire dans 24h
-        self.source = source
-        self.target = target
+        self.source_id_str = source_id_str
+        self.target_id_str = target_id_str
+        self.source_name = source_name
+        self.target_name = target_name
         self.amount = amount
         self.source_user_id = source_user_id
         self.target_user_id = target_user_id
@@ -149,7 +151,7 @@ class TransferContract(discord.ui.View):
             await interaction.response.edit_message(embed=embed, view=self)
             
             if hasattr(interaction.channel, 'send') and interaction.channel:
-                await getattr(interaction.channel, 'send')(f"🎉 **Transaction scellée.** `{self.source}` a transféré **{self.amount:.2f}%** à `{self.target}`.")
+                await getattr(interaction.channel, 'send')(f"🎉 **Transaction scellée.** `{self.source_name}` a transféré **{self.amount:.2f}%** à `{self.target_name}`.")
         else:
             status_text = f"Expéditeur : {'✅ Signé' if self.sender_signed else '⏳ En attente'}\n"
             status_text += f"Receveur : {'✅ Signé' if self.receiver_signed else '⏳ En attente'}"
@@ -250,9 +252,10 @@ class TransferContract(discord.ui.View):
 
 
 class DilutionContract(discord.ui.View):
-    def __init__(self, new_member: str, amount: float):
+    def __init__(self, new_member_id_str: str, new_member_name: str, amount: float):
         super().__init__(timeout=86400)
-        self.new_member = new_member
+        self.new_member_id_str = new_member_id_str
+        self.new_member_name = new_member_name
         self.amount = amount
         self.contract_id = str(uuid.uuid4())[:8].upper()
 
@@ -267,7 +270,7 @@ class DilutionContract(discord.ui.View):
             return
 
         try:
-            manager.dilute(self.new_member, self.amount, str(interaction.user), self.contract_id)
+            manager.dilute(self.new_member_id_str, self.amount, str(interaction.user), self.contract_id)
             for child in self.children:
                 if hasattr(child, 'disabled'):
                     child.disabled = True # type: ignore
@@ -282,7 +285,7 @@ class DilutionContract(discord.ui.View):
                 await interaction.response.send_message("Dilution scellée, mais message original introuvable.", ephemeral=True)
             
             if hasattr(interaction.channel, 'send') and interaction.channel:
-                await getattr(interaction.channel, 'send')(f"📉 **Cap Table mise à jour.** Les parts ont été diluées pour l'entrée de `{self.new_member}` avec **{self.amount:.2f}%**.")
+                await getattr(interaction.channel, 'send')(f"📉 **Cap Table mise à jour.** Les parts ont été diluées pour l'entrée de `{self.new_member_name}` avec **{self.amount:.2f}%**.")
         except ValueError as e:
             if interaction.message and interaction.message.embeds:
                 embed = interaction.message.embeds[0]
@@ -440,10 +443,12 @@ async def donner(ctx: commands.Context[Any], source: discord.Member, cible: disc
         if pourcentage <= 0:
             raise ValueError("Le pourcentage doit être supérieur à 0.")
             
+        source_id_str = str(source.id)
+        cible_id_str = str(cible.id)
         source_name = source.display_name
         cible_name = cible.display_name
         
-        view = TransferContract(source_name, cible_name, pourcentage, source.id, cible.id)
+        view = TransferContract(source_id_str, cible_id_str, source_name, cible_name, pourcentage, source.id, cible.id)
         
         embed = discord.Embed(
             title="📜 Contrat de Transfert - En Attente",
@@ -471,10 +476,12 @@ async def claim(ctx: commands.Context[Any]):
             await ctx.send("❌ Le compte `Owner` n'a plus de parts à distribuer.")
             return
             
+        admin_id_str = str(ctx.author.id)
         admin_name = ctx.author.display_name
         contract_id = str(uuid.uuid4())[:8].upper()
         
-        manager.transfer(OWNER_ID, admin_name, owner_shares, str(ctx.author), contract_id)
+        # On transfère l'équité depuis OWNER_ID vers admin_id_str
+        manager.transfer(OWNER_ID, admin_id_str, owner_shares, str(ctx.author), contract_id)
         await ctx.send(f"🎉 **Succès !** `{admin_name}` vient de réclamer les {owner_shares:.2f}% de `Owner`. Vous pouvez maintenant utiliser l'autocomplétion native pour transférer vos parts !")
     except Exception as e:
         await ctx.send(f"❌ Erreur : {e}")
@@ -483,7 +490,10 @@ async def claim(ctx: commands.Context[Any]):
 @app_commands.describe(nouveau_membre="Nouvel actionnaire", pourcentage="Pourcentage alloué (ex: 10)")
 async def diluer(ctx: commands.Context[Any], nouveau_membre: discord.Member, pourcentage: float):
     try:
-        view = DilutionContract(nouveau_membre.display_name, pourcentage)
+        new_member_id_str = str(nouveau_membre.id)
+        new_member_name = nouveau_membre.display_name
+        
+        view = DilutionContract(new_member_id_str, new_member_name, pourcentage)
         
         embed = discord.Embed(
             title="⚖️ Contrat de Dilution - En Attente",

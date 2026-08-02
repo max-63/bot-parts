@@ -1,0 +1,20 @@
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+
+[tool.basedpyright]
+typeCheckingMode = "basic"
+
+reportMissingTypeStubs = false
+reportUnknownMemberType = false
+reportImplicitRelativeImport = false
+reportAny = false
+reportUnusedVariable = "warning"
+reportUnusedImport = "warning"
+reportGeneralTypeIssues = false
+reportAttributeAccessIssue = false
+reportOptionalMemberAccess = false
+reportOptionalSubscript = false
+reportPrivateImportUsage = false
+reportIncompatibleMethodOverride = false
+reportIncompatibleVariableOverride = false
+reportTypedDictNotRequiredAccess = false
